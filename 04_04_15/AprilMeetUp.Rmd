@@ -1,0 +1,260 @@
+---
+title: "Introduction to Recoding Variables in R"
+author: "Jared Harpole"
+date: "Sunday, March 08, 2015"
+output: 
+      slidy_presentation:
+            font_adjustment: 4
+          
+---
+
+## Why Recode Variables in R?
+* We don't have to use R for recoding variables
+      + We could use Excel or another program with a GUI
+* Using a program with a GUI that involves pointing and clicking is not ideal
+      + Lack of reproducibility
+      + Difficult and/or impossible to retrace
+      + Does not work in a team environment
+* By using R and saving our .R files we have a log of what we did
+      + This allows for better reproducibility
+      + Retracing is tractable
+      + Works in team environments
+
+
+## Today's Agenda
+
+1. Recoding numerics, factors, and characters
+2. Using Base R for these
+3. Using mapvalues in plyr 
+4. Applications to missing data
+5. Advanced topic: Using functional programming for recoding values
+
+## Recoding Numerical Data: Base R
+
+```{r basen, comment=NA, size="footnotesize"}
+set.seed(1)
+dat_1a <- data.frame(a = sample(3, 10, replace = TRUE), b = sample(2, 10, replace = TRUE))
+dat_1a
+dat_1a$a[dat_1a$a == 1] <- 50
+dat_1a$b[dat_1a$b == 2] <- 100
+dat_1a
+```
+
+* With base R using more complex boolean expressions are possible
+* Select values between -0.7 and 0.2 and code as 100
+```{r, comment = NA}
+set.seed(1)
+dat_1b <- data.frame(a = rnorm(10), b = rnorm(10))
+dat_1b
+dat_1b$a[dat_1b$a < 0.2 & dat_1b$a > -.7] <- 100
+dat_1b
+```
+
+## Recoding Factors: Base R Take 1
+* Using `dat_2$a[dat_2$a == 1] <- 50` does not work for factors
+```{r basefw, comment = NA}
+dat_2 <- data.frame(a = gl(2, 5, labels = c('hi', 'low')), b = gl(5, 2, labels = letters[1:5]))
+dat_2
+dat_2$a[dat_2$a == 'hi'] <- 'v-high'
+dat_2
+```
+```{r, echo = FALSE, cache=TRUE}
+dat_2a <- data.frame(a = gl(2, 5, labels = c('hi', 'low')), b = gl(5, 2, labels = letters[1:5]))
+dat_2b <- dat_2a
+```
+## Recoding Factors: Base R Take 2
+* Okay let's do it right using `levels()`
+```{r, comment = NA}
+dat_2a
+levels(dat_2a$a) <- c('walrus', 'snake')
+dat_2a
+```
+* Note that the order that walrus = hi and snake = low as per original coding
+
+
+
+
+* Quick and dirty reversal of levels with `rev()` on column b
+```{r basefr, comment = NA}
+dat_2b
+levels(dat_2b$b) <- rev(levels(dat_2b$b))
+dat_2b
+```
+
+## Recoding Characters: Base R 
+* Here we can go back to the `dat_3$a[dat_3$a == "a"] <- 'z'` syntax
+```{r basec, comment = NA}
+set.seed(1)
+dat_3 <- data.frame(a = sample(letters[1:3], 10, replace = TRUE), 
+                    b = sample(letters[11:14], 10, replace = TRUE), 
+                    stringsAsFactors = FALSE)
+dat_3$a[dat_3$a == 'a'] <- 'z'
+dat_3
+```
+
+## Recoding a Continuous Variable as Categorical: Base R
+* We will use the `cut()` function to do this
+* Note intervals are closed on the right and opened on left by default
+* I used ordered_result = TRUE to let R know this is an ordered factor
+```{r, comment = NA}
+set.seed(1)
+dat_4a <- data.frame(a = rnorm(20), b = rnorm(20))
+dat_4b <- dat_4a
+dat_4a
+dat_4a$a <- cut(dat_4a$a, breaks = c(-Inf, -1, 1, Inf), 
+                ordered_result = TRUE)
+dat_4a$b <- cut(dat_4a$b, breaks = c(-Inf, 0, Inf),
+                ordered_result = TRUE)
+dat_4a
+
+```
+* What if you don't like those labels
+```{r, comment = NA}
+dat_4b$a <- cut(dat_4b$a, breaks = c(-Inf, -1, 1, Inf), 
+                labels = c("small", "med", "large"),
+                ordered_result = TRUE)
+dat_4b$b <- cut(dat_4b$b, breaks = c(-Inf, 0, Inf), 
+                labels = c("low", "high"), 
+                ordered_result = TRUE)
+dat_4b
+```
+
+## Using the mapvalues Function in plyr: Numeric
+* Up until know everything we did was using base R functions
+* The mapvalues function may now be your best friend
+```{r, comment = NA, echo = FALSE}
+if(!require(plyr))
+      install.packages('plyr')
+set.seed(1)
+```
+```{r, comment = NA}
+dat_5 <- data.frame(a = sample(3, 10, replace = TRUE), b = sample(2, 10, replace = TRUE))
+dat_5
+dat_5$a <- mapvalues(dat_5$a, from = c(1,2,3), to = c(3,2,1))
+dat_5
+dat_5$b <- mapvalues(dat_5$b, from = c(1,2), to = c(10, 20))
+dat_5
+```
+
+## Using the mapvalues Function in plyr: Factors
+* Here I show how to do a general recode of factors
+```{r, comment = NA, cache=TRUE}
+dat_6 <- data.frame(a = gl(2, 5, labels = c('hi', 'low')), b = gl(5, 2, labels = letters[1:5]))
+dat_6
+dat_6$a <- mapvalues(dat_6$a, from = c('hi', 'low'), to = c(1, 2))
+dat_6
+```
+
+* Here I show how to combine factor levels with mapvalues
+* This is more straightforward using mapvalues that Base R (in my opinion)
+```{r, comment = NA}
+dat_6$a <- mapvalues(dat_6$a, from = c(1, 2), to = c(1,1))
+dat_6$b <- mapvalues(dat_6$b, from = letters[1:5], 
+                     to = c('a', 'a', 'c', 'd', 'e'))
+dat_6
+```
+* Note that recoding characters works the same way as with numerics:
+  + Add the thing to recode `dat_6$a`
+  + Add the `from = c('did not participate', 'not applicable')`
+  + Add the `to = c(NA, NA)`
+  + Run the function and get your recoded values
+  
+## Pros and Cons of Base R vs mapvalues
+* Base R may take slightly less typing for simple cases vs mapvalues
+* mapvalues may be more intuitive to use (you be the judge of that)
+* Base R works better if you need complex boolean recoding
+* mapvalues is more straightforward for combining factor levels
+* mapvalues is more straightforward for reverse coding
+* Overall I think the mapvalues function is a good option especially for beginners on most tasks
+
+## Missing Data Example with Base R and mapvalues
+* Let's look at a case of 100 observations with 5 variables that have 1 missing value
+      + The missing value is -999
+```{r, cache = TRUE, comment = NA, echo = FALSE}
+makeMiss <- function(Nit, Ncase, missVec){
+    set.seed(1234)
+    sampVals <- c(1:5, missVec)
+    dat <- list()
+    for(i in 1:Nit){
+        dat[[i]] <- sample(sampVals, Ncase, replace = TRUE)
+    }
+    dat <- as.data.frame(do.call(cbind, dat))
+    dat
+}
+dat_7a <- makeMiss(5, 100, -999)
+dat_7b <- dat_7a
+dat_8a <- makeMiss(15, 100, -999)
+dat_8b <- makeMiss(15, 100, -999)
+
+```
+
+```{r, comment = NA}
+head(dat_7a)
+sapply(dat_7a, table)
+dat_7a$V1[dat_7a$V1 == -999] <- NA
+dat_7a$V2[dat_7a$V2 == -999] <- NA
+dat_7a$V3[dat_7a$V3 == -999] <- NA
+dat_7a$V4[dat_7a$V4 == -999] <- NA
+dat_7a$V5[dat_7a$V5 == -999] <- NA
+sapply(dat_7a, table, useNA = "always")
+
+```
+
+* Now let's do the mapvalues way
+```{r, comment = NA}
+head(dat_7b)
+sapply(dat_7b, table)
+dat_7b$V1 <- mapvalues(dat_7b$V1, from = -999, to = NA)
+dat_7b$V2 <- mapvalues(dat_7b$V2, from = -999, to = NA)
+dat_7b$V3 <- mapvalues(dat_7b$V3, from = -999, to = NA)
+dat_7b$V4 <- mapvalues(dat_7b$V4, from = -999, to = NA)
+dat_7b$V5 <- mapvalues(dat_7b$V5, from = -999, to = NA)
+sapply(dat_7b, table, useNA = "always")
+
+```
+
+* This approach works okay but there is a serious flaw in using both mapvalues
+and Base R
+      + What is the serious flaw?
+      + Hint what if I have 20 or 100 variables
+      
+## Advanced Topic: Using Functions For Recoding Missing Values
+* Up until this point I showed you how to recode values one at a time
+      + This may be a viable way depending on your problem
+* I want you to start to be able to see patterns that may make your life easier
+* Repeating a task = opportunity to simplify code
+* This is where using functions comes in handy 
+* Let's take an example
+
+## Advanced Topic Example: 15 variables with one missing value
+* Let me show you how we might tackle a problem like this.
+```{r, comment = NA}
+head(dat_8a)
+sapply(dat_8a, table)
+```
+* Our missing value is -999
+* To solve this for 1 variable at a time we could do the following
+```{r, comment = NA}
+table(dat_8a$V1)
+dat_8a$V1[dat_8a$V1 == -999] <- NA
+table(dat_8a$V1)
+```
+* Now if we need to recode 15 variables that may have  missing values how can we do this more efficiently?
+* Using a function and applying this function over the data frame
+```{r, comment = NA, cache = TRUE}
+recodeSingleMiss <- function(x, naVal){
+    x[x == naVal] <- NA
+    x
+}
+```
+* Notice that `x[x == naVal] <- NA` is `dat_8a$V1[dat_8a$V1 == -999] <- NA`
+* Now using this function we can recode 15 variables super fast and don't risk making near the typos
+```{r, comment = NA}
+head(dat_8b)
+sapply(dat_8b, table)
+dat_8b[] <- lapply(dat_8b, recodeSingleMiss, -999)
+sapply(dat_8b, table, useNA = "always")
+
+```
+
+## Questions and/or Comments 
