@@ -1,0 +1,204 @@
+---
+title: 'KC R Users: Apply Function Intro'
+author: "Jared Harpole"
+date: "April 15, 2016"
+output: slidy_presentation
+---
+
+#Overview
+
+* What are the `apply` family of functionals
+
+* Why use the `apply` family of functionals?
+
+* What exactly are the `apply` family of functionals doing under the hood?
+
+* Review of `lapply`, `sapply`, `vapply`, `apply`, `tapply`, and `mapply`
+
+
+#What are the `apply` family of functionals and Why use them?
+
+* The `apply` family are a set of functions that allow for writing compact code by 
+avoiding loops. 
+  + More specifically `apply` and variants are functionals
+  + This means that they take a function as input and return a vector as output
+  
+* What if you want to compute the column sums of a matrix? How would you do it?
+
+  + First way `for` loop:
+  
+```{r, comment = NA}
+set.seed(12)
+x <- matrix(rnorm(100), ncol = 10)
+
+output <- vector('numeric', length = ncol(x))
+for(col in seq_along(x[1, ])){
+  output[col] <- sum(x[,col])
+}
+output
+```
+
+  + Second way `apply`:
+  
+```{r, comment = NA}
+set.seed(12)
+x <- matrix(rnorm(100), ncol = 10)
+
+apply(x, MARGIN = 2, FUN = sum)
+
+```
+
+* One line versus 4 lines....You decide?
+
+
+#Using `lapply` to Illustrate What is Going On?
+
+* Previously we looked at how `apply` worked on a matrix.
+
+* Now I will use `lapply` to give you some intuition of what is going on.
+
+* Let's take another example with lists computing the column sums of each matrix in a list:
+
+  + `for` loop way:
+  
+```{r, comment = NA}
+set.seed(12)
+mat_list <- list(a = matrix(rnorm(100), ncol = 10), b = matrix(rlnorm(100), ncol = 10))
+
+out_list <- vector('list', length = length(mat_list))
+for(i in seq_along(mat_list)){
+  tmp <- vector('numeric', length = ncol(mat_list[[i]]))
+  for(j in seq_along(mat_list[[i]][1, ])){
+    tmp[j] <- sum(mat_list[[i]][, j])
+  }
+  out_list[[i]] <- tmp
+}
+out_list
+```
+
+  + `lapply` way:
+  
+```{r, comment = NA}
+set.seed(12)
+mat_list <- list(a = matrix(rnorm(100), ncol = 10), b = matrix(rlnorm(100), ncol = 10))
+
+lapply(mat_list, FUN = colSums, na.rm = TRUE)
+
+```
+
+* In this example it made a huge difference
+
+#`lapply` Under the Hood
+
+* In the previous example `lapply` was much more compact and expressive as to what we were doing
+
+* According to the R docs here is how to use `lapply`:
+  
+    + `lapply(X, FUN, ...)`
+  
+    + `X` is a vector and will be coerced as a list
+  
+    + `FUN` is the function to apply to each element of `X`
+  
+    + `...` are optional arguments to `FUN`
+  
+* What is `lapply` doing? Let's write our own simple R implementation.
+
+
+```{r, comment = NA, cache = TRUE}
+
+lapply_jh <- function(X, FUN, ...){
+  output <- vector('list', length(X))
+  for(i in seq_along(X)){
+    output[[i]] <- FUN(X[[i]], ...)  
+  }
+  output
+}
+
+```
+
+* We can see `lapply_jh` is a wrapper for a common `for` loop pattern:
+
+    + Create a container for output `output`
+    + Apply a function `FUN` to each component of the list
+    + Fill `output` with the results
+    
+* The logic here generalizes to other members of the `apply` family with various nuances
+
+* Now watch this!!!
+
+```{r, comment = NA}
+set.seed(12)
+mat_list <- list(a = matrix(rnorm(100), ncol = 10), b = matrix(rlnorm(100), ncol = 10))
+
+lapply(mat_list, colSums, na.rm = TRUE)
+lapply_jh(mat_list, colSums, na.rm = TRUE)
+```
+
+#Friends of `lapply`: `sapply` and `vapply`
+
+* `sapply` and `vapply` are similary to `lapply` except that they simplify the output if possible
+
+    + `sapply` guesses and `vapply` takes an additional argument to specify the output type
+    
+* Let's take an example where output can be simplified:
+
+```{r, comment = NA}
+set.seed(12)
+test_list <- list(x = matrix(rnorm(100), ncol = 10), y = matrix(rnorm(100), ncol = 10))
+
+lapply(test_list, colMeans)
+
+sapply(test_list, colMeans)
+
+vapply(test_list, colMeans, vector('numeric', length = 10))
+
+
+```
+
+* Let's take an example where output should not be simplified (should throw error):
+
+```{r, comment = NA}
+set.seed(12)
+test_list <- list(x = matrix(rnorm(100), ncol = 10), y = matrix(rnorm(100), ncol = 5))
+
+sapply(test_list, colMeans)
+
+#vapply(test_list, colMeans, vector('numeric', length = 10))
+
+```
+
+#`tapply`: Grouped Apply
+* `tapply` is like a generalization of `apply` to summarizing grouped data
+
+* let's say we have ages from 3 groups that we want to compute the mean age per group:
+
+```{r, comment = NA, cache = TRUE}
+ages <- sample(18:65, 45, replace = TRUE)
+group <- gl(n = 3, k = 15, labels = c('A', 'B', 'C'))
+
+tapply(X = ages, INDEX = group, FUN = mean, na.rm = TRUE, simplify = TRUE)
+```
+
+* We can create a simple R implementation of `tapply`
+
+```{r, comment = NA}
+tapply_jh <- function(X, INDEX, FUN, ..., simplify = TRUE){
+  groups <- split(X, INDEX)
+  sapply(groups, FUN, ..., simplify = TRUE)
+}
+
+```
+
+  + First split the data using `split`:
+  
+```{r, comment = NA}
+split(ages, group)
+```
+
+  + Now apply `FUN` to groups using `sapply` with simpligy is True
+  
+```{r, comment = NA}
+groups <- split(ages, group)
+sapply(groups, FUN = mean, na.rm = TRUE)
+```
