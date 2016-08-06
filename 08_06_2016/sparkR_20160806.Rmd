@@ -1,0 +1,468 @@
+---
+title: "An Introduction to Apache Spark and SparkR"
+author: "Jared Harpole"
+date: "August 6, 2016"
+output: slidy_presentation
+---
+
+#Overview
+
+* What is Hadoop?
+
+* What is Mapreduce?
+
+* What is Apache Spark?
+
+* Quick Tutorial of SparkR
+
+#What is Hadoop?
+* An open-source software framework for distributed storeage and distributed processing on clusters.
+
+* Created by Doug Cutting in 2006 based on a 2004 paper from Google.
+
+* Solves the problem of storing and processing massive amounts of data.
+    + Relational database servers such as SQL break down with Terabytes and Petabytes
+  
+#What is Hadoop Cont?
+* Breaks massive data sets up into indpendent chunks and operate on each chunk
+    + Count the number of words in 10 billion news articles
+    + Process Tweets from Twitter and analyze the data
+    + Process and compute statistics on location records of mobile phone subscribers
+  
+* Hadoop is written in Java and uses a framework called Mapreduce to process the massive amounts of data.
+
+#What is Mapreduce?
+
+* A distributed computing framework based on work of Jeffrey Dean and Sanjay Ghemawat from Google in 2004.
+
+* Idea is to utilize a large number of machines to process certain jobs in parallel using mappers and reducers.
+
+* A core idea of Mapreduce are thinking and operating in (key, value) pairs
+    + (with, 1), (the, 1), (the, 1), (you, 2)
+    + (Jared Harpole, [23, PSYC101, A]), (Steve Simon, [45, MATH115, A])
+
+* Input of a mapreduce program is a set of (key, value) pairs
+
+#Visual of Mapreduce
+
+* An Image of Hadoop and Mapreduce: http://www.milanor.net/blog/an-example-of-mapreduce-with-rmr2/
+
+<img src="/home/jared/sparkR_pres/MapReduce_Work_Structure.png" width="1000px" height="500px" />
+
+#Let's Look at the Code: Mapper
+
+* The input to the mapper is a word. Will emit (word, 1) for word count
+
+```{r, comment=NA, eval=FALSE, echo=TRUE}
+#! /usr/bin/env Rscript
+
+input <- file('stdin', 'r')
+
+while(length(line <- readLines(input, n = 1, warn = FALSE)) > 0){
+  if(nchar(line) == 0) break
+  
+  fields <- unlist(strsplit(line, '\n'))
+  cat(fields[1], '\t', '1', '\n')
+}
+
+close(input)
+
+```
+
+#Let's Look at the Code: Reducer
+
+* Remember the Mapper emits (word, 1)
+```{r, comment=NA, eval=FALSE, echo=TRUE}
+#! /usr/bin/env Rscript
+
+con <- file('stdin', 'r')
+is_first_line <- TRUE
+while(length(line <- readLines(con, n = 1, warn = FALSE)) > 0) {
+  pieces <- unlist(strsplit(line, '\t'))
+  if(!is_first_line && prev_word == pieces[1]){
+    sum <- sum + as.integer(pieces[2])
+  } else {
+    
+    if(!is_first_line){
+      cat(prev_word, "\t", sum, "\n")
+    }
+    prev_word <- pieces[1]
+    sum <- as.integer(pieces[2])
+    is_first_line <- FALSE
+  }
+}
+cat(prev_word, "\t", sum, "\n")
+close(con)
+```
+
+#Let's Show How they Work: Part 1
+
+```{r, engine="bash", comment=NA, highlight=FALSE}
+cat /home/jared/sparkR_pres/words.txt
+```
+
+#Let's Show How they Work: Part 2
+
+```{r, engine = "bash", comment=NA, highlight=FALSE}
+cat ./words.txt | Rscript ./mapper.R
+```
+
+#Let's Show How they Work: Part 3
+
+```{r, engine = "bash", comment=NA, highlight=FALSE}
+cat ./words.txt | Rscript ./mapper.R | sort -k1,1 | Rscript ./reducer.R
+```
+
+#Hadoop and Mapreduce Recap
+
+* Hadoop and Mapreduce are good for the following:
+    + Processing terabytes and petabytes of data using batch processing
+    + Storing diverse data
+    + Parallel processing 1 by 1 (i.e. Sums and Aggregates)
+  
+* Hadoop and Mapreduce are not good for the following:
+    + Real time data processing and/or analytics
+    + RDS system (very slow) Hive can help for non-time sensitive queries
+    + Quick programming for data manipulation/munging and analytics
+
+#What is Apache Spark?
+
+* Very fast cluster computing framework for fast computations
+
+* Extends the Mapreduce framework for use with interactive queries, streaming, and iterative processing (Machine Learning algorithms)
+
+* Some report up to 100 times faster than Mapreduce
+
+* Much easier to program in as a data scientist and/or data analyst
+
+#What is Apache Spark Cont..?
+
+* Has excellent features
+    + Supports multiple languages (i.e. Java, Scala, Python, R)
+    + Advanced Analytics
+    + Speed
+  
+* Components
+    + Spark SQL
+    + Spark Streaming
+    + ML/MLlib
+    + GraphX
+  
+#What is Apache Spark Cont...?
+
+* Core structure in Spark is the resilient distributed datasets (RDD)
+
+* Read only partitioned collection of records
+
+* RDDs are what store the data across the cluster.
+
+* Think of it as a faster way for Mapreduce to happen due to in memory processing and fast retrieval.
+
+#Motivating Example of Apache Spark
+
+* Remember the word count with our mapper.R and reducer.R
+    + Approximately 31 lines of code
+  
+* Here is the equivalent sparkR implementation:
+
+```{r, comment=NA, cache=TRUE,message=FALSE}
+library(magrittr)
+library(SparkR)
+
+sc <- sparkR.init(master = "local")
+wordCount <- sc %>%
+  textFile("./words.txt") %>%
+  map(function(x) {
+    tmp <- unlist(strsplit(x, '\n'))
+    return(list(tmp, 1))
+    }) %>% reduceByKey(`+`, 2L)
+wordCount %>% collect()
+```
+
+* Note I would have used reduceByKey but could not due to errors.
+
+#Quickstart for SparkR
+
+* Install devtools and magrittr R packages
+
+```{r, eval=FALSE, comment = NA}
+install.packages(c("devtools", "magrittr"))
+```
+
+* Load devtools and magrittr and run the following install_github command
+
+```{r, eval = FALSE, comment = NA}
+library(devtools)
+library(magrittr)
+
+install_github("amplab-extras/SparkR-pkg",subdir = "pkg")
+```
+
+* This is a bare bones install that is quick and easy to do and for me to explain
+
+* A better way would be to download the .tgz file from Apache Spark and follow the
+directions on installing SparkR.
+
+#Some Quick Book Keeping Items
+
+* When using Spark we are dealing with RDDs that are distributed on a cluster.
+
+* In Spark you have something called a Driver
+
+    + The driver is the master node and can store objects in memory.
+  
+    + The workers are on the cluster
+  
+    + Given that we are operating in local mode you may be like why does this matter
+  
+* When running Spark for real on real world problems you will likely be on a cluster.
+
+#Spark Functions with SparkR: parallelize, first, take, collect, and count
+
+* parallelize creates an RDD and is often useful for tutorials like this or quick prototyping or testing
+
+```{r, comment = NA, message = FALSE}
+library(magrittr)
+library(SparkR)
+sc <- sparkR.init(master = "local")
+tmpRDD <- sc %>% parallelize(c(1, 2, 3, 4, 5, 6))
+tmpRDD
+```
+
+* When operating on an RDD your typical r functions like head and tail won't work
+
+* Instead we need to use first, take, or collect
+
+```{r, comment = NA, message = FALSE}
+library(magrittr)
+library(SparkR)
+sc <- sparkR.init(master = "local")
+tmpRDD <- sc %>% parallelize(c(1, 2, 3, 4, 5, 6))
+
+tmpRDD %>% first
+
+tmpRDD %>% take(3)
+
+tmpRDD %>% collect()
+
+tmpRDD %>% count()
+```
+
+
+#Spark Functions with SparkR: filter
+
+* Simple Filters
+```{r, comment = NA, message = FALSE}
+library(magrittr)
+library(SparkR)
+sc <- sparkR.init(master = "local")
+
+myfirstRDD <- sc %>%
+  parallelize(sample(1:100, 40, replace = TRUE))
+
+## filterRDD function
+myfirstRDD_filtered <- myfirstRDD %>%
+  filterRDD(function(x) x > 30)
+
+myfirstRDD_filtered %>% count()
+
+myfirstRDD_filtered %>% take(10)
+
+## Can chain operations
+myfirstRDD %>%
+  filterRDD(function(x) x > 30) %>%
+  take(10)
+```
+
+* Slightly more complicated filter
+
+```{r, comment = NA, message = TRUE, echo = TRUE}
+library(magrittr)
+library(SparkR)
+sc <- sparkR.init(master = "local")
+
+myfirstRDD <- sc %>%
+  parallelize(list(list("a", 1), list("b", 2), list("c", 1), list("d", 3)))
+
+myfirstRDD %>% 
+  filterRDD(function(x) x[2] > 1) %>% 
+  take(2)
+
+```
+
+#Spark Functions with SparkR: map and reduce
+
+* Map
+```{r, comment = NA, message = FALSE}
+library(magrittr)
+library(SparkR)
+sc <- sparkR.init(master = "local")
+
+myfirstRDD <- sc %>%
+  parallelize(sample(1:100, 40, replace = TRUE))
+
+myfirstRDD_map <- myfirstRDD %>%
+  map(function(x) x**2 + 10)
+
+myfirstRDD_map %>% take(10)
+```
+
+* Reduce
+
+```{r, comment = NA, message = FALSE}
+library(magrittr)
+library(SparkR)
+sc <- sparkR.init(master = "local")
+
+myfirstRDD <- sc %>%
+  parallelize(sample(1:100, 40, replace = TRUE))
+
+myfirstRDD %>% 
+  reduce(`+`)
+```
+
+#Spark Functions with SparkR: join
+
+* join well...joins two RDDs on a common key
+
+```{r, comment = NA, message = FALSE}
+library(magrittr)
+library(SparkR)
+
+sc <- sparkR.init(master = "local")
+
+rdd1 <- sc %>% parallelize(list(list("a", 1), list("b", 33), list("c", 34)))
+rdd2 <- sc %>% parallelize(list(list("a", 12), list("d", 56), list("b", 24), list("c", 4)))
+
+newrdd <- join(rdd1, rdd2, 2L)
+
+newrdd %>% take(3)
+
+```
+
+#A Quick Aside: Actions and Transformations
+* I should back up and say that within Spark there are actions and transformations
+
+* first, take, count, and collect are actions
+
+* filter, reduce, join, and map are transformations
+
+* Spark uses lazy evaluation and nothing happens until an action is called
+    + Behind the scenes Spark is creating a DAG to evaluate the operations
+  
+
+#Spark Functions with SparkR: combineByKey
+
+* combineByKey is perhaps one of the most useful functions in Spark
+
+    + groupByKey, reduceByKey, countByKey etc. are special cases
+    
+* combineByKey takes three arguments
+
+    + createCombiner (function) that turns each V into a 1 element list (C)
+    
+    + mergeValue (function) that merge a V into a C
+    
+    + mergeCombiners (function) to combine two C's
+
+#Spark Functions with SparkR: combineByKey cont.
+
+* Let's take an example
+
+```{r, comment = NA, message = FALSE}
+library(magrittr)
+library(SparkR)
+
+sc <- sparkR.init(master = "local")
+
+rdd2 <- sc %>% textFile("/home/jared/sparkR_pres/grades.csv") 
+rdd2 %>% take(2)
+```
+
+* This is a csv file so let's create a function to parse it
+
+```{r, comment = NA, message = FALSE}
+library(magrittr)
+library(SparkR)
+
+sc <- sparkR.init(master = "local")
+
+rdd2 <- sc %>% textFile("/home/jared/sparkR_pres/grades.csv") 
+
+splitLines <- function(x){
+  strsplit(x, ",")
+}
+example <- rdd2 %>% flatMap(splitLines)
+
+example %>% take(3)
+```
+
+* Columns are: ID, Name, Age, Class, Grade
+
+
+
+#Spark Functions with SparkR: combineByKey cont.
+
+* Create a key of Name_ID and then have values of (key, [Class, Grade])
+
+* Example of combineByKey cont...
+
+```{r, comment = NA, message = FALSE, size="small"}
+library(magrittr)
+library(SparkR)
+
+sc <- sparkR.init(master = "local")
+
+rdd2 <- sc %>% textFile("/home/jared/sparkR_pres/grades.csv") 
+
+splitLines <- function(x){
+  strsplit(x, ",")
+}
+example <- rdd2 %>% flatMap(splitLines)
+
+## createCombiner
+start_fun <- function(x){
+  list(c(x[1], x[2]))
+}
+## mergeValue
+mergeVal_fun <- function(x, y){
+  c(list(c(y[1], y[2])), x)
+} 
+## mergeCombiners
+mergeComb_fun <- function(x, y){
+  c(x, y)
+}
+
+combineByKey_example <- example %>%
+  map(function(x) {
+    key <- paste0(x[1], "_", x[2])
+    list(key, c(x[4], x[5]))
+  }) %>% 
+  combineByKey(start_fun, mergeVal_fun, mergeComb_fun, 3L) %>% collect()
+
+combineByKey_example
+```
+
+#Quick Aside on map vs. flatMap
+
+```{r, comment=NA, message = FALSE}
+library(magrittr)
+library(SparkR)
+
+sc <- sparkR.init(master = "local")
+
+rdd2 <- sc %>% textFile("/home/jared/sparkR_pres/grades.csv") 
+
+splitLines <- function(x){
+  strsplit(x, ",")
+}
+example <- rdd2 %>% map(splitLines)
+
+example2 <- rdd2 %>% flatMap(splitLines)
+
+example %>% take(3)
+
+example2 %>% take(3)
+
+
+```
