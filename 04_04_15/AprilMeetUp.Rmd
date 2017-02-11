@@ -1,7 +1,7 @@
 ---
 title: "Introduction to Recoding Variables in R"
 author: "Jared Harpole"
-date: "Sunday, March 08, 2015"
+date: "Saturday December 10, 2016"
 output: 
       slidy_presentation:
             font_adjustment: 4
