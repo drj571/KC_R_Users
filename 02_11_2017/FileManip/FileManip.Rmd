@@ -1,0 +1,213 @@
+---
+title: "Kansas City R Users Group February"
+author: "Jared Harpole"
+date: "February 11, 2017"
+output: 
+      slidy_presentation:
+            font_adjustment: 2
+          
+---
+
+## Manipulating Files Why Do I Need to Know This?
+* For interactive work you may not need to do this
+      + However, I will show you a cool trick to select files for loading into R
+* If you want to automate work flows
+      + I am a Data Scientist and I use this
+      + Researchers might use as well
+* There are built-in functions in R that are probably better than what you could write
+      + Allows for cross portability of code across OSs
+      + Succint function calls
+* This is a Beginners Meetup
+      + Some material/approaches are advanced
+      + Please stop me if you have questions
+
+
+## Today's Agenda
+
+1. A quick and easy way to get a file path
+2. How to grab the file name from a file path
+3. Creating file paths that are operating system independent
+4. What is the `~` and how to use it in file paths 
+5. How to get important file meta data
+6. Testing if file or directories exist and creating them if needed
+
+## A quick and easy way to get a file path
+
+* Have you ever been frustrated by reading data into R?
+    + Getting file paths can suck
+  
+* There is a quick and easy way while you are learning
+    + `file.choose`
+
+* Let's Take a Quick Example
+    
+```{r basen, comment=NA, size="footnotesize", eval=FALSE}
+my_file <- file.choose()
+my_csv <- read.table(file = my_file, sep = ",", header = TRUE)
+```
+
+## How to grab the file name from a file path
+
+* How do you grab the file name from "/home/jared/test.csv" 
+
+* You can write your own function like so
+
+```{r, comment = NA}
+## Write a function to split the path (returns a list)
+my_file_path <- "/home/jared/test.csv"
+splitted_path <- strsplit(x = my_file_path, split = "/")
+splitted_path
+## Need to flatten the list or grab the 1 element (either 1 works)
+# Using unlist to make a list a vector
+flatten1 <- unlist(splitted_path)
+flatten1
+# Using [[]] operator
+flatten2 <- splitted_path[[1]]
+flatten2
+## Now grab the last element (tail or lenght)
+# tail version
+file_name1 <- tail(x = flatten1, n = 1)
+file_name1
+
+file_name2 <- flatten1[length(flatten1)]
+file_name2
+## Here it is in 1 line
+file_name <- tail(unlist(strsplit(x = my_file_path, split = "/")), n = 1)
+file_name 
+```
+
+## How to grab the file name from a file path Cont....
+
+* What are some problems with the previous approaches?
+
+
+## How to grab the file name from a file path Cont...
+
+* There is a better way (Thank You R Base!!!)
+
+* R has a function called basename
+
+```{r, comment = NA}
+my_file_path <- "/home/jared/test.csv"
+
+file_name <- basename(path = my_file_path)
+file_name
+```
+
+## Creating file paths that are operating system independent
+
+* Can't you just use `paste`? Yes but there are problems
+
+```{r, comment = NA}
+## Avoid doing this
+my_bad_linux_path <- paste(c("/home", "jared", "jared.csv"), collapse = "/")
+my_bad_linux_path
+
+my_bad_windows_path <- paste(c("C:", "User", "Jared"), collapse = "\\")
+my_bad_windows_path
+```
+
+* If You go from Windows to Linux you will have problems potentially
+
+* A better option is file.path
+
+```{r, comment = NA}
+my_good_linux_path <- file.path("/home", "jared", "jared.csv")
+my_good_linux_path
+
+my_good_windows_path <- file.path("C:", "User", "Jared", "jared.csv")
+my_good_windows_path
+```
+
+
+## What is the `~` and how to use it in file paths 
+
+* The `~` operator usually does /home/<username>
+      + /home/jared
+      + /home/ubuntu
+        
+* Typically this is nice because then you don't have to write out /home/<username>
+      + Extremely useful for making software work depending on user executing
+      + Recommender Server on AWS 
+
+* In R you can use path.expand to take advantage of `~`
+```{r, comment = NA}
+## Let's use file.path and path.expand
+file_path <- file.path("~", "jared.csv")
+print(file_path)
+path.expand(file_path)
+```
+
+## How to get important file meta data
+
+* Let's say I want to know information about a file 
+      + The size in bytes
+      + The file modification time
+      + The last status change
+
+* How do we do this in R? file.info to the rescue
+
+```{r, comment = NA}
+test_file <- file.path("~", "FileManip", "test.txt")
+test_file <- path.expand(test_file)
+
+file.info(test_file)
+
+## Lets get the size and modification time
+file.info(test_file)[c("size", "mtime")]
+```
+
+## Testing if file or directories exist and creating them if needed
+
+* Let's say you have a program that you want to test if a file exists
+      + If it exists don't do anything and if not create
+      + file.exists and file.create to the rescue
+      
+```{r, comment = NA, echo = FALSE, message = FALSE}
+test_file <- path.expand(file.path("~", "kcr.csv"))
+if(file.exists(test_file)){
+  removed <-file.remove(test_file)
+}
+```
+
+
+```{r, comment = NA}
+test_file <- file.path("~", "kcr.csv")
+test_file <- path.expand(test_file)
+## file.exists function
+file.exists(test_file)
+## Create a boolean variables
+exists <- file.exists(test_file)
+## Test for existence
+if(!exists){
+  print("File does not exist. Creating test_file file")
+  file.create(test_file)
+  print(paste0("Was test_file created: ", file.exists(test_file)))
+}
+```
+
+
+## Testing if file or directories exist and creating them if needed Cont..
+
+* Now let's do the same thing for a directory
+      + If it exists don't do anything and if not create
+      + dir.exists and dir.create to the rescue
+      
+```{r, comment = NA, echo = FALSE, message = FALSE}
+test_dir <- path.expand(file.path("~", "kcr_rulz"))
+if(dir.exists(test_dir)){
+  removed <- unlink(test_dir)
+}
+```
+
+```{r, comment = NA}
+test_dir <- path.expand(file.path("~", "kcr_rulz"))
+test_dir
+## Create existence variable with dir.exists
+exists <- dir.exists(test_dir)
+if(!exists){
+  print("Directory does not exist. Creating directory")
+  dir.create(test_dir)
+  print(paste("Was test_dir created: ", dir.exists(test_dir)))
+}
+```
